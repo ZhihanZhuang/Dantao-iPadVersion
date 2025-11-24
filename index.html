@@ -1,0 +1,2093 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <!-- 📱 Mobile Viewport: Crucial for responsive design and disabling zoom -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DANTAO (Mobile)</title>
+    <style>
+        /* 🎨 视觉设计 - 色彩方案 */
+        :root {
+            --color-bg: #141428;      /* 深蓝黑背景 */
+            --color-primary: #FFD700; /* 主题色: 金色 */
+            --color-joystick: rgba(255, 255, 255, 0.2);
+            --color-stick: rgba(255, 255, 255, 0.5);
+            --color-skill-ready: rgba(0, 150, 255, 0.7);
+            --color-skill-cd: rgba(50, 50, 50, 0.8);
+            --color-skill-text: white;
+            --color-skill-cd-text: #FFD700;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--color-bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* 阻止滚动 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none; /* 阻止文本选择 */
+            -webkit-user-select: none;
+            -webkit-touch-callout: none; /* 阻止长按菜单 */
+        }
+
+        canvas {
+            border: 3px solid var(--color-primary);
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.2);
+            background-color: var(--color-bg);
+            /* 宽高将由 JS 设置为 100% */
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- 🕹️ 移动端 UI 控件 --- */
+
+        /* 虚拟摇杆 (左右通用) */
+        .joystick-base {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            background-color: var(--color-joystick);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        .joystick-stick {
+            width: 60px;
+            height: 60px;
+            background-color: var(--color-stick);
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.7);
+            position: absolute;
+            /* JS 会控制 transform */
+            transition: transform 0.05s linear;
+        }
+
+        /* 左摇杆 (移动) */
+        #joystick-left-base {
+            bottom: 30px;
+            left: 30px;
+        }
+
+        /* 右摇杆 (射击) */
+        #joystick-right-base {
+            bottom: 30px;
+            right: 30px;
+        }
+
+        /* 技能按钮容器 */
+        #skill-buttons {
+            position: absolute;
+            bottom: 100px;
+            right: 170px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .skill-button {
+            width: 60px;
+            height: 60px;
+            border: 3px solid var(--color-primary);
+            background-color: var(--color-skill-ready);
+            border-radius: 50%;
+            color: var(--color-skill-text);
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 5px black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .skill-button:active {
+            transform: scale(0.95);
+        }
+
+        /* 技能冷却中样式 */
+        .skill-button.on-cooldown {
+            background-color: var(--color-skill-cd);
+            border-color: #555;
+            color: var(--color-skill-cd-text);
+            font-size: 28px;
+        }
+
+        /* 音乐控制按钮样式 (移到右上角) */
+        #music-control {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(255, 215, 0, 0.9);
+            color: #141428;
+            border: 2px solid #FFD700;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 16px; /* 缩小字体 */
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            z-index: 100; /* 确保在最上层 */
+        }
+
+        #music-control:hover {
+            background-color: #FFF;
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- 游戏画布 -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- 音频元素 -->
+<audio id="backgroundMusic" loop>
+    <source src="https://example.com/your-awesome-game-music.mp3" type="audio/mp3">
+</audio>
+
+<!-- 音乐按钮 -->
+<button id="music-control">
+    🔊
+</button>
+
+<!-- 摇杆 UI -->
+<div id="joystick-left-base" class="joystick-base">
+    <div id="joystick-left-stick" class="joystick-stick"></div>
+</div>
+<div id="joystick-right-base" class="joystick-base">
+    <div id="joystick-right-stick" class="joystick-stick"></div>
+</div>
+
+<!-- 技能按钮 UI -->
+<div id="skill-buttons">
+    <button id="skill-q" class="skill-button">Q</button>
+    <button id="skill-c" class="skill-button">C</button>
+    <button id="skill-e" class="skill-button">E</button>
+</div>
+
+
+<script>
+    // --------------------------------------------------------
+    // 📁 代码结构：DANTAO - 移动端适配版
+    // --------------------------------------------------------
+
+    // === 全局常量 ===
+    // 宽高不再是常量，它们是动态的
+    let CANVAS_WIDTH = window.innerWidth;
+    let CANVAS_HEIGHT = window.innerHeight;
+    const FPS = 60;
+    const BACKGROUND_COLOR = 'rgb(20, 20, 40)';
+    const GRID_COLOR = 'rgb(40, 40, 60)';
+    const SHOCKWAVE_COOLDOWN = 10.0;
+
+    // 状态机
+    const GameState = {
+        MENU: 'menu',
+        GAME: 'game',
+        LEVEL_UP: 'level_up',
+        GAME_OVER: 'game_over'
+    };
+
+    // 皮肤颜色
+    const SkinColors = {
+        default: 'rgb(0, 255, 0)',
+        blue: 'rgb(0, 100, 255)',
+        red: 'rgb(255, 50, 50)',
+        gold: 'rgb(255, 215, 0)'
+    };
+
+    // --------------------------------------------------------
+    // 0. Mobile Controls / VirtualJoystick.js
+    // --------------------------------------------------------
+    class VirtualJoystick {
+        constructor(baseElement, stickElement) {
+            this.base = baseElement;
+            this.stick = stickElement;
+
+            this.isActive = false;
+            this.touchId = null;
+            this.vector = { x: 0, y: 0 };
+
+            this.baseRect = this.base.getBoundingClientRect();
+            this.baseCenter = {
+                x: this.baseRect.left + this.baseRect.width / 2,
+                y: this.baseRect.top + this.baseRect.height / 2
+            };
+            this.maxRadius = this.baseRect.width / 2;
+
+            this.base.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
+            // 监听 document 以便手指移出底座
+            document.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
+            document.addEventListener('touchend', this.handleEnd.bind(this));
+            document.addEventListener('touchcancel', this.handleEnd.bind(this));
+        }
+
+        handleStart(e) {
+            e.preventDefault();
+            if (this.isActive) return;
+
+            const touch = e.changedTouches[0];
+            this.touchId = touch.identifier;
+            this.isActive = true;
+            this.stick.style.transition = 'none'; // 开始拖动时移除缓动
+            this.updateStickPosition(touch.clientX, touch.clientY);
+        }
+
+        handleMove(e) {
+            if (!this.isActive) return;
+
+            let touch = null;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this.touchId) {
+                    touch = e.changedTouches[i];
+                    break;
+                }
+            }
+
+            if (touch) {
+                e.preventDefault(); // 阻止页面滚动
+                this.updateStickPosition(touch.clientX, touch.clientY);
+            }
+        }
+
+        handleEnd(e) {
+            if (!this.isActive) return;
+
+            let touchEnded = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this.touchId) {
+                    touchEnded = true;
+                    break;
+                }
+            }
+
+            if (touchEnded) {
+                this.isActive = false;
+                this.touchId = null;
+                this.vector = { x: 0, y: 0 };
+                this.stick.style.transition = 'transform 0.1s ease-out'; // 恢复缓动
+                this.stick.style.transform = 'translate(0px, 0px)';
+            }
+        }
+
+        updateStickPosition(touchX, touchY) {
+            const dx = touchX - this.baseCenter.x;
+            const dy = touchY - this.baseCenter.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            let stickX, stickY, vecX, vecY;
+
+            if (distance > this.maxRadius) {
+                stickX = (dx / distance) * this.maxRadius;
+                stickY = (dy / distance) * this.maxRadius;
+                vecX = dx / distance;
+                vecY = dy / distance;
+            } else {
+                stickX = dx;
+                stickY = dy;
+                vecX = dx / this.maxRadius;
+                vecY = dy / this.maxRadius;
+            }
+
+            this.stick.style.transform = `translate(${stickX}px, ${stickY}px)`;
+            this.vector = { x: vecX, y: vecY };
+        }
+
+        getVector() {
+            return this.vector;
+        }
+
+        // 窗口大小改变时更新摇杆位置
+        recalculatePosition() {
+            this.baseRect = this.base.getBoundingClientRect();
+            this.baseCenter = {
+                x: this.baseRect.left + this.baseRect.width / 2,
+                y: this.baseRect.top + this.baseRect.height / 2
+            };
+            this.maxRadius = this.baseRect.width / 2;
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // 1. Data/PlayerData.js - 数据持久化
+    // --------------------------------------------------------
+    class PlayerData {
+        constructor() {
+            this.coins = 0;
+            this.ownedSkins = ['default'];
+            this.currentSkin = 'default';
+            this.highScore = 0;
+            this.loadData();
+        }
+
+        loadData() {
+            try {
+                // 移动端 localStorage 通常可用
+                const dataString = localStorage.getItem('dantao_player_data');
+                if (dataString) {
+                    const data = JSON.parse(dataString);
+                    this.coins = data.coins || 0;
+                    this.ownedSkins = data.owned_skins || ['default'];
+                    this.currentSkin = data.current_skin || 'default';
+                    this.highScore = data.highScore || 0;
+                }
+            } catch (e) {
+                console.error("加载数据失败，使用默认值:", e);
+            }
+        }
+
+        saveData() {
+            try {
+                const data = {
+                    coins: this.coins,
+                    owned_skins: this.ownedSkins,
+                    current_skin: this.currentSkin,
+                    highScore: this.highScore
+                };
+                localStorage.setItem('dantao_player_data', JSON.stringify(data));
+            } catch (e) {
+                console.error("保存数据失败:", e);
+            }
+        }
+
+        addCoins(amount) {
+            this.coins += amount;
+            this.saveData();
+        }
+
+        updateHighScore(score) {
+            if (score > this.highScore) {
+                this.highScore = score;
+                this.saveData();
+            }
+        }
+
+        getSkinColor() {
+            return SkinColors[this.currentSkin] || SkinColors.default;
+        }
+    }
+
+    // --------------------------------------------------------
+    // 2. Systems/CollisionManager.js - 碰撞系统
+    // --------------------------------------------------------
+    class CollisionManager {
+        static checkCircleCollision(e1, e2) {
+            const dx = e1.x - e2.x;
+            const dy = e1.y - e2.y;
+            const distanceSq = dx * dx + dy * dy;
+            const radiiSum = e1.radius + e2.radius;
+            return distanceSq < radiiSum * radiiSum;
+        }
+
+        static checkAndResolve(entity, targetRect) {
+            const radius = entity.radius || (entity.width ? entity.width / 2 : 30);
+
+            const eRect = {
+                left: entity.x - radius,
+                right: entity.x + radius,
+                top: entity.y - radius,
+                bottom: entity.y + radius
+            };
+
+            const tRect = targetRect;
+
+            const overlapX = Math.max(0, Math.min(eRect.right, tRect.x + tRect.width) - Math.max(eRect.left, tRect.x));
+            const overlapY = Math.max(0, Math.min(eRect.bottom, tRect.y + tRect.height) - Math.max(eRect.top, tRect.y));
+
+            if (overlapX > 0 && overlapY > 0) {
+                if (overlapX < overlapY) {
+                    if (eRect.left < tRect.x) {
+                        entity.x -= overlapX;
+                    } else {
+                        entity.x += overlapX;
+                    }
+                } else {
+                    if (eRect.top < tRect.y) {
+                        entity.y -= overlapY;
+                    } else {
+                        entity.y += overlapY;
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+
+    // --------------------------------------------------------
+    // 3. Systems/Camera.js - 摄像机系统
+    // --------------------------------------------------------
+    class Camera {
+        constructor(width, height) {
+            this.width = width;
+            this.height = height;
+            this.x = 0;
+            this.y = 0;
+            this.smoothness = 0.08;
+        }
+
+        update(target, dt) {
+            const targetX = target.x - this.width / 2;
+            const targetY = target.y - this.height / 2;
+
+            this.x += (targetX - this.x) * this.smoothness;
+            this.y += (targetY - this.y) * this.smoothness;
+        }
+
+        worldToScreen(worldX, worldY) {
+            return {
+                x: worldX - this.x,
+                y: worldY - this.y
+            };
+        }
+
+        getViewport() {
+            const inflate = 200;
+            return {
+                left: this.x - inflate,
+                top: this.y - inflate,
+                right: this.x + this.width + inflate,
+                bottom: this.y + this.height + inflate
+            };
+        }
+    }
+
+    // --------------------------------------------------------
+    // 4. Systems/RNG.js (Helper) & InfiniteWorld.js - 世界生成
+    // --------------------------------------------------------
+
+    class SeededRNG {
+        constructor(seed) {
+            this.seed = seed % 2147483647;
+            if (this.seed <= 0) this.seed += 2147483646;
+        }
+
+        next() {
+            this.seed = (this.seed * 16807) % 2147483647;
+            return (this.seed - 1) / 2147483646;
+        }
+
+        randFloat(min = 0, max = 1) {
+            return min + this.next() * (max - min);
+        }
+
+        randInt(min, max) {
+            return Math.floor(this.randFloat(min, max + 1));
+        }
+
+        choice(arr) {
+            return arr[this.randInt(0, arr.length - 1)];
+        }
+    }
+
+    class Building {
+        constructor(x, y, width, height, type) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.type = type;
+            this.health = type === 'wood' ? 50 : 150;
+            this.maxHealth = this.health;
+            this.isHazard = type === 'spike' || type === 'fire';
+            this.isDestroyable = !this.isHazard;
+            this.damage = this.isHazard ? (type === 'spike' ? 15 : 20) : 0;
+
+            this.color = this._getColor(type);
+            this.isAlive = true;
+        }
+
+        _getColor(type) {
+            switch (type) {
+                case 'wood': return 'rgb(139, 69, 19)';
+                case 'stone': return 'rgb(100, 100, 100)';
+                case 'spike': return 'rgb(150, 50, 50)';
+                case 'fire': return 'rgb(255, 100, 0)';
+                default: return 'gray';
+            }
+        }
+
+        takeDamage(damage) {
+            if (this.isDestroyable) {
+                this.health -= damage;
+                if (this.health <= 0) {
+                    this.isAlive = false;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        draw(ctx, offset) {
+            const screenPos = {
+                x: this.x - offset.x,
+                y: this.y - offset.y
+            };
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.fillRect(screenPos.x + 5, screenPos.y + 5, this.width, this.height);
+
+            ctx.fillStyle = this.color;
+            ctx.fillRect(screenPos.x, screenPos.y, this.width, this.height);
+
+            if (this.type === 'spike') {
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    ctx.moveTo(screenPos.x + i * (this.width / 5), screenPos.y);
+                    ctx.lineTo(screenPos.x + (i * (this.width / 5)) + (this.width / 10), screenPos.y - 10);
+                    ctx.lineTo(screenPos.x + (i + 1) * (this.width / 5), screenPos.y);
+                }
+                ctx.fill();
+            }
+        }
+    }
+
+    class InfiniteWorld {
+        constructor() {
+            this.chunkSize = 1000;
+            this.chunks = new Map();
+            this.typeDistribution = [
+                { type: 'wood', prob: 0.40 },
+                { type: 'stone', prob: 0.30 },
+                { type: 'spike', prob: 0.15 },
+                { type: 'fire', prob: 0.15 }
+            ];
+        }
+
+        getChunkCoords(worldX, worldY) {
+            const chunkX = Math.floor(worldX / this.chunkSize);
+            const chunkY = Math.floor(worldY / this.chunkSize);
+            return { x: chunkX, y: chunkY };
+        }
+
+        getChunkKey(x, y) {
+            return `${x},${y}`;
+        }
+
+        getVisibleContent(player) {
+            const { x: pX, y: pY } = this.getChunkCoords(player.x, player.y);
+            const visibleBuildings = [];
+            const visibleChunkKeys = [];
+            const loadDistance = 2;
+
+            for (let i = -loadDistance; i <= loadDistance; i++) {
+                for (let j = -loadDistance; j <= loadDistance; j++) {
+                    const chunkX = pX + i;
+                    const chunkY = pY + j;
+                    const key = this.getChunkKey(chunkX, chunkY);
+                    visibleChunkKeys.push({ x: chunkX, y: chunkY });
+
+                    if (!this.chunks.has(key)) {
+                        this.generateChunk(chunkX, chunkY);
+                    }
+
+                    visibleBuildings.push(...this.chunks.get(key).buildings.filter(b => b.isAlive));
+                }
+            }
+
+            return {
+                buildings: visibleBuildings,
+                chunkKeys: visibleChunkKeys
+            };
+        }
+
+        generateChunk(chunkX, chunkY) {
+            const key = this.getChunkKey(chunkX, chunkY);
+            const seed = (chunkX * 10000 + chunkY) * 12345;
+            const rng = new SeededRNG(seed);
+
+            const buildings = [];
+            const numBuildings = rng.randInt(10, 25);
+
+            const originX = chunkX * this.chunkSize;
+            const originY = chunkY * this.chunkSize;
+            const padding = 50;
+
+            for (let i = 0; i < numBuildings; i++) {
+                const typeIndex = this._getWeightedRandomType(rng);
+                const type = this.typeDistribution[typeIndex].type;
+
+                const width = rng.randInt(60, 120);
+                const height = rng.randInt(60, 120);
+
+                const x = originX + rng.randInt(padding, this.chunkSize - width - padding);
+                const y = originY + rng.randInt(padding, this.chunkSize - height - padding);
+
+                buildings.push(new Building(x, y, width, height, type));
+            }
+
+            this.chunks.set(key, { buildings: buildings, enemies: [] });
+        }
+
+        _getWeightedRandomType(rng) {
+            const total = this.typeDistribution.reduce((sum, item) => sum + item.prob, 0);
+            let rand = rng.randFloat(0, total);
+
+            for (let i = 0; i < this.typeDistribution.length; i++) {
+                rand -= this.typeDistribution[i].prob;
+                if (rand <= 0) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+
+        getChunkWorldBounds(chunkX, chunkY) {
+            const originX = chunkX * this.chunkSize;
+            const originY = chunkY * this.chunkSize;
+            return {
+                x: originX,
+                y: originY,
+                width: this.chunkSize,
+                height: this.chunkSize
+            };
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // 5. Entities/Player.js - 玩家实体
+    // --------------------------------------------------------
+    class Player {
+        constructor(x, y, data) {
+            this.x = x;
+            this.y = y;
+            this.radius = 30;
+            this.data = data;
+            this.level = 1;
+            this.score = 0;
+
+            this.maxHealth = 100;
+            this.health = 100;
+            this.baseSpeed = 250;
+            this.baseDamage = 15;
+
+            this.damageMultiplier = 1.0;
+            this.speedMultiplier = 1.0;
+
+            this.isAlive = true;
+            this.isInvincible = false;
+            this.invincibilityTimer = 0;
+            this.invincibilityDuration = 0.5;
+            this.lastAttackTime = 0;
+            this.attackCooldown = 0.25;
+
+            // --- E (Shockwave) Skill ---
+            this.shockwaveCooldown = 0;
+            this.shockwaveMaxCooldown = SHOCKWAVE_COOLDOWN;
+            this.shockwaveRadius = 500;
+            this.shockwaveDamage = 100;
+            this.isShockwaving = false;
+            this.shockwaveTimer = 0.0;
+            this.shockwaveDuration = 0.2;
+
+            // --- Q (Shield) Skill ---
+            this.shieldCooldown = 0;
+            this.shieldMaxCooldown = 15.0;
+            this.isShielded = false;
+            this.shieldDuration = 2.0;
+
+            // --- C (Damage Buff) Skill ---
+            this.buffCooldown = 0;
+            this.buffMaxCooldown = 20.0;
+            this.isBuffed = false;
+            this.buffDuration = 5.0;
+            this.baseBuffMultiplier = 1.0;
+
+            this.exp = 0;
+            this.expToNextLevel = 100;
+            this.expGrowthRate = 1.4;
+
+            this.aimAngle = 0;
+        }
+
+        // --- Q 技能 (护盾) ---
+        useShield(currentTime) {
+            if (this.shieldCooldown <= 0) {
+                this.shieldCooldown = this.shieldMaxCooldown;
+                this.isShielded = true;
+                this.shieldDuration = 2.0;
+                return true;
+            }
+            return false;
+        }
+
+        // --- C 技能 (增伤) ---
+        useDamageBuff(currentTime) {
+            if (this.buffCooldown <= 0) {
+                this.buffCooldown = this.buffMaxCooldown;
+                this.isBuffed = true;
+                this.damageMultiplier += this.baseBuffMultiplier;
+                this.buffDuration = 5.0;
+                return true;
+            }
+            return false;
+        }
+
+        useShockwave(currentTime) {
+            if (this.shockwaveCooldown <= 0) {
+                this.shockwaveCooldown = this.shockwaveMaxCooldown;
+                this.isShockwaving = true;
+                this.shockwaveTimer = this.shockwaveDuration;
+                return true;
+            }
+            return false;
+        }
+
+        gainExp(amount) {
+            this.exp += amount;
+            while (this.exp >= this.expToNextLevel) {
+                this.levelUp();
+            }
+        }
+
+        levelUp() {
+            this.level += 1;
+            this.exp -= this.expToNextLevel;
+            this.expToNextLevel = Math.floor(100 * (this.expGrowthRate ** this.level));
+
+            this.health += this.maxHealth * 0.3;
+            if (this.health > this.maxHealth) this.health = this.maxHealth;
+
+            gameInstance.setState(GameState.LEVEL_UP);
+        }
+
+        applyUpgrade(type) {
+            switch(type) {
+                case 'damage':
+                    this.damageMultiplier += 0.25;
+                    break;
+                case 'health':
+                    this.maxHealth += 30;
+                    this.health += 30;
+                    break;
+                case 'speed':
+                    this.speedMultiplier += 0.15;
+                    break;
+            }
+            gameInstance.setState(GameState.GAME);
+        }
+
+        takeDamage(damage) {
+            if (this.isShielded) {
+                return true;
+            }
+            if (!this.isAlive || this.isInvincible) return false;
+
+            this.health -= damage;
+            this.isInvincible = true;
+            this.invincibilityTimer = this.invincibilityDuration;
+
+            if (this.health <= 0) {
+                this.health = 0;
+                this.isAlive = false;
+                gameInstance.setState(GameState.GAME_OVER);
+            }
+            return true;
+        }
+
+        attack(currentTime, targetX, targetY) {
+            if (currentTime >= this.lastAttackTime + this.attackCooldown) {
+                this.lastAttackTime = currentTime;
+
+                const finalDamage = this.baseDamage * this.damageMultiplier;
+                const speed = 600;
+
+                const dx = targetX - this.x;
+                const dy = targetY - this.y;
+                // this.aimAngle is already set by handleInput
+
+                return new Projectile(this.x, this.y, this.aimAngle, speed, finalDamage, this, 'player');
+            }
+            return null;
+        }
+
+        // handleInput 现在只处理移动和瞄准
+        handleInput(input, dt) {
+            let velX = 0;
+            let velY = 0;
+            const currentSpeed = this.baseSpeed * this.speedMultiplier;
+
+            // 1. 移动 (来自左摇杆)
+            const moveVec = gameInstance.moveJoystick.getVector();
+            velX = moveVec.x;
+            velY = moveVec.y;
+
+            if (velX !== 0 || velY !== 0) {
+                // 归一化 (摇杆输出已经是归一化的)
+                // const magnitude = Math.sqrt(velX * velX + velY * velY);
+                // velX /= magnitude;
+                // velY /= magnitude;
+            }
+
+            this.x += velX * currentSpeed * dt;
+            this.y += velY * currentSpeed * dt;
+
+            // 2. 瞄准 (来自右摇杆)
+            const shootVec = gameInstance.shootJoystick.getVector();
+            if (gameInstance.shootJoystick.isActive) {
+                this.aimAngle = Math.atan2(shootVec.y, shootVec.x);
+            } else if (velX !== 0 || velY !== 0) {
+                // 如果不射击，则朝向移动方向
+                this.aimAngle = Math.atan2(velY, velX);
+            }
+            // (如果都不动，保持上一次的 aimAngle)
+        }
+
+        update(dt) {
+            this.score += 1 * dt;
+
+            // Invincibility update
+            if (this.isInvincible) {
+                this.invincibilityTimer -= dt;
+                if (this.invincibilityTimer <= 0) {
+                    this.isInvincible = false;
+                }
+            }
+
+            // E Skill Cooldown/Timer update
+            if (this.shockwaveCooldown > 0) {
+                this.shockwaveCooldown -= dt;
+            }
+            if (this.isShockwaving) {
+                this.shockwaveTimer -= dt;
+                if (this.shockwaveTimer <= 0) {
+                    this.isShockwaving = false;
+                }
+            }
+
+            // Q Skill Cooldown/Timer update (Shield)
+            if (this.shieldCooldown > 0) {
+                this.shieldCooldown -= dt;
+            }
+            if (this.isShielded) {
+                this.shieldDuration -= dt;
+                if (this.shieldDuration <= 0) {
+                    this.isShielded = false;
+                    this.shieldDuration = 2.0;
+                }
+            }
+
+            // C Skill Cooldown/Timer update (Damage Buff)
+            if (this.buffCooldown > 0) {
+                this.buffCooldown -= dt;
+            }
+            if (this.isBuffed) {
+                this.buffDuration -= dt;
+                if (this.buffDuration <= 0) {
+                    this.isBuffed = false;
+                    this.damageMultiplier -= this.baseBuffMultiplier;
+                    this.buffDuration = 5.0;
+                }
+            }
+
+            // 陷阱伤害
+            gameInstance.buildings.forEach(b => {
+                const trapContact = {
+                    x: b.x + b.width / 2,
+                    y: b.y + b.height / 2,
+                    radius: Math.min(b.width, b.height) / 2
+                };
+                if (b.isHazard && CollisionManager.checkCircleCollision(this, trapContact)) {
+                    this.takeDamage(b.damage * dt);
+                }
+            });
+        }
+
+        draw(ctx, offset) {
+            const screenPos = gameInstance.camera.worldToScreen(this.x, this.y);
+
+            // --- Q 技能护盾效果 ---
+            if (this.isShielded) {
+                const radius = this.radius * 1.5;
+                const flash = Math.abs(Math.sin(gameInstance.currentTime * 10));
+
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(0, 150, 255, ${0.5 + flash * 0.3})`;
+                ctx.lineWidth = 8;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, this.radius + 5, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 100, 255, 0.4)`;
+                ctx.fill();
+            }
+
+            // --- E 技能冲击波效果 ---
+            if (this.isShockwaving) {
+                const progress = 1 - (this.shockwaveTimer / this.shockwaveDuration);
+                const currentRadius = progress * this.shockwaveRadius;
+
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, currentRadius, 0, Math.PI * 2);
+
+                const alpha = 0.5 - progress * 0.5;
+                ctx.strokeStyle = `rgba(200, 200, 255, ${alpha})`;
+                ctx.lineWidth = 15 + (1 - progress) * 20;
+                ctx.stroke();
+            }
+
+            const isFlashing = this.isInvincible && (Math.floor(this.invincibilityTimer * 10) % 2 === 0);
+
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = isFlashing ? 'white' : this.data.getSkinColor();
+            ctx.fill();
+
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // --- C 技能增伤效果 ---
+            if (this.isBuffed) {
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, this.radius * 0.8, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 100, 0, 0.8)';
+                ctx.lineWidth = 5;
+                ctx.stroke();
+            }
+
+            const eyeRadius = 12;
+            const pupilRadius = 6;
+            const eyeOffset = 10;
+
+            const eyeX = screenPos.x + Math.cos(this.aimAngle) * (this.radius - eyeRadius);
+            const eyeY = screenPos.y + Math.sin(this.aimAngle) * (this.radius - eyeRadius);
+
+            const pupilX = eyeX + Math.cos(this.aimAngle) * eyeOffset;
+            const pupilY = eyeY + Math.sin(this.aimAngle) * eyeOffset;
+
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(pupilX, pupilY, pupilRadius, 0, Math.PI * 2);
+            ctx.fillStyle = 'black';
+            ctx.fill();
+        }
+    }
+
+    // --------------------------------------------------------
+    // 6. Entities/Projectile.js - 投射物系统
+    // --------------------------------------------------------
+    class Projectile {
+        constructor(x, y, angle, speed, damage, owner, type) {
+            this.x = x;
+            this.y = y;
+            this.angle = angle;
+            this.speed = speed;
+            this.damage = damage;
+            this.owner = owner;
+            this.type = type;
+            this.radius = 8;
+            this.velX = Math.cos(angle) * speed;
+            this.velY = Math.sin(angle) * speed;
+            this.lifetime = 3.0;
+            this.isAlive = true;
+
+            this.color = type === 'player' ? 'rgb(255, 215, 0)' : 'rgb(255, 50, 50)';
+        }
+
+        update(dt) {
+            this.x += this.velX * dt;
+            this.y += this.velY * dt;
+            this.lifetime -= dt;
+
+            if (this.lifetime <= 0) {
+                this.isAlive = false;
+            }
+        }
+
+        draw(ctx, offset) {
+            const screenPos = gameInstance.camera.worldToScreen(this.x, this.y);
+
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, this.radius * 2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${this.color.slice(4, -1)}, 0.2)`;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, this.radius / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgb(255, 255, 200)';
+            ctx.fill();
+        }
+    }
+
+    // --------------------------------------------------------
+    // 7. Entities/Enemy.js - 敌人系统
+    // --------------------------------------------------------
+    class EnemyBase {
+        constructor() {
+            this.isAlive = true;
+            this.knockbackVelX = 0;
+            this.knockbackVelY = 0;
+        }
+
+        drawHealthBar(ctx, screenPos) {
+            const barWidth = 40;
+            const barHeight = 5;
+            const healthRatio = this.health / this.maxHealth;
+
+            ctx.fillStyle = 'rgb(100, 30, 30)';
+            ctx.fillRect(screenPos.x - barWidth / 2, screenPos.y - this.radius - 15, barWidth, barHeight);
+
+            ctx.fillStyle = healthRatio > 0.6 ? 'rgb(50, 255, 50)' : 'rgb(255, 200, 50)';
+            ctx.fillRect(screenPos.x - barWidth / 2, screenPos.y - this.radius - 15, barWidth * healthRatio, barHeight);
+        }
+
+        applyKnockback(angle, force) {
+            this.knockbackVelX = Math.cos(angle) * force;
+            this.knockbackVelY = Math.sin(angle) * force;
+        }
+
+        updateMovement(dt, speed) {
+            this.x += this.knockbackVelX * dt;
+            this.y += this.knockbackVelY * dt;
+
+            const decayRate = 0.9;
+            this.knockbackVelX *= decayRate;
+            this.knockbackVelY *= decayRate;
+
+            if (Math.abs(this.knockbackVelX) < 10) this.knockbackVelX = 0;
+            if (Math.abs(this.knockbackVelY) < 10) this.knockbackVelY = 0;
+        }
+    }
+
+    class NormalShooter extends EnemyBase {
+        constructor(x, y) {
+            super();
+            this.x = x;
+            this.y = y;
+            this.radius = 25;
+            this.maxHealth = 40;
+            this.health = 40;
+            this.speed = 100;
+            this.damage = 8;
+            this.expValue = 15;
+            this.color = 'rgb(255, 100, 100)';
+            this.attackCooldown = 2.0;
+            this.lastAttackTime = 0;
+            this.attackRange = 350;
+            this.alertRange = 500;
+        }
+
+        takeDamage(damage) {
+            this.health -= damage;
+            if (this.health <= 0) {
+                this.isAlive = false;
+                gameInstance.player.gainExp(this.expValue);
+                gameInstance.player.score += this.expValue;
+                gameInstance.enemiesKilledThisWave += 1;
+                return true;
+            }
+            return false;
+        }
+
+        update(dt, currentTime, target) {
+            if (!this.isAlive) return;
+
+            this.updateMovement(dt, this.speed);
+            if (this.knockbackVelX !== 0 || this.knockbackVelY !== 0) return;
+
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            const speed = this.speed;
+
+            if (distance < this.alertRange) {
+                let moveX = Math.cos(angle);
+                let moveY = Math.sin(angle);
+
+                if (distance < 200) {
+                    moveX *= -1;
+                    moveY *= -1;
+                } else if (distance > 300) {
+                } else {
+                    moveX = 0;
+                    moveY = 0;
+                }
+
+                this.x += moveX * speed * dt;
+                this.y += moveY * speed * dt;
+
+                if (distance < this.attackRange && currentTime >= this.lastAttackTime + this.attackCooldown) {
+                    this.lastAttackTime = currentTime;
+                    this.shoot(angle);
+                }
+            }
+        }
+
+        shoot(angle) {
+            const speed = 400;
+            const damage = this.damage;
+            const projectile = new Projectile(this.x, this.y, angle, speed, damage, this, 'enemy');
+            gameInstance.projectiles.push(projectile);
+        }
+
+        draw(ctx, offset) {
+            const screenPos = gameInstance.camera.worldToScreen(this.x, this.y);
+
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            this.drawHealthBar(ctx, screenPos);
+        }
+    }
+
+    class FastMeleeEnemy extends EnemyBase {
+        constructor(x, y) {
+            super();
+            this.x = x;
+            this.y = y;
+            this.width = 30;
+            this.height = 30;
+            this.radius = 20;
+            this.maxHealth = 20;
+            this.health = 20;
+            this.speed = 350;
+            this.damage = 5;
+            this.expValue = 8;
+            this.color = 'rgb(50, 255, 255)';
+        }
+
+        takeDamage(damage) {
+            this.health -= damage;
+            if (this.health <= 0) {
+                this.isAlive = false;
+                gameInstance.player.gainExp(this.expValue);
+                gameInstance.player.score += this.expValue;
+                gameInstance.enemiesKilledThisWave += 1;
+                return true;
+            }
+            return false;
+        }
+
+        update(dt, currentTime, target) {
+            if (!this.isAlive) return;
+
+            this.updateMovement(dt, this.speed);
+            if (this.knockbackVelX !== 0 || this.knockbackVelY !== 0) return;
+
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const angle = Math.atan2(dy, dx);
+
+            this.x += Math.cos(angle) * this.speed * dt;
+            this.y += Math.sin(angle) * this.speed * dt;
+        }
+
+        draw(ctx, offset) {
+            const screenPos = gameInstance.camera.worldToScreen(this.x, this.y);
+            const halfW = this.width / 2;
+            const halfH = this.height / 2;
+
+            ctx.fillStyle = this.color;
+            ctx.fillRect(screenPos.x - halfW, screenPos.y - halfH, this.width, this.height);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenPos.x - halfW, screenPos.y - halfH, this.width, this.height);
+
+            this.drawHealthBar(ctx, screenPos);
+        }
+    }
+
+    class BossEnemy extends EnemyBase {
+        constructor(x, y) {
+            super();
+            this.x = x;
+            this.y = y;
+            this.radius = 70;
+            this.maxHealth = 500 + gameInstance.wave * 200;
+            this.health = this.maxHealth;
+            this.speed = 50;
+            this.damage = 25;
+            this.expValue = 300;
+            this.color = 'rgb(100, 50, 150)';
+            this.attackCooldown = 5.0;
+            this.lastAttackTime = 0;
+            this.numProjectiles = 12;
+        }
+
+        takeDamage(damage) {
+            this.health -= damage;
+            if (this.health <= 0) {
+                this.isAlive = false;
+                gameInstance.player.gainExp(this.expValue);
+                gameInstance.player.score += this.expValue * 5;
+                return true;
+            }
+            return false;
+        }
+
+        update(dt, currentTime, target) {
+            if (!this.isAlive) return;
+
+            this.updateMovement(dt, this.speed);
+            if (this.knockbackVelX !== 0 || this.knockbackVelY !== 0) return;
+
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            const angle = Math.atan2(dy, dx);
+
+            this.x += Math.cos(angle) * this.speed * dt;
+            this.y += Math.sin(angle) * this.speed * dt;
+
+            if (currentTime >= this.lastAttackTime + this.attackCooldown) {
+                this.lastAttackTime = currentTime;
+                this.shootRadial();
+            }
+        }
+
+        shootRadial() {
+            const speed = 300;
+            const damage = this.damage;
+            const projectiles = [];
+
+            for (let i = 0; i < this.numProjectiles; i++) {
+                const angle = (i / this.numProjectiles) * Math.PI * 2;
+                projectiles.push(new Projectile(this.x, this.y, angle, speed, damage, this, 'enemy'));
+            }
+            gameInstance.projectiles.push(...projectiles);
+        }
+
+        draw(ctx, offset) {
+            const screenPos = gameInstance.camera.worldToScreen(this.x, this.y);
+
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            ctx.fillStyle = '#FFD700';
+            const crownBaseY = screenPos.y - this.radius;
+
+            ctx.beginPath();
+            ctx.moveTo(screenPos.x - this.radius * 0.5, crownBaseY);
+            ctx.lineTo(screenPos.x + this.radius * 0.5, crownBaseY);
+
+            for(let i = -2; i <= 2; i++) {
+                const tipX = screenPos.x + i * (this.radius * 0.2);
+                const tipY = crownBaseY - 20;
+                ctx.lineTo(tipX, tipY);
+                ctx.lineTo(tipX + (this.radius * 0.1), crownBaseY);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            this.drawHealthBar(ctx, screenPos);
+        }
+    }
+
+
+    // --------------------------------------------------------
+    // 8. Game - 游戏主控制层 (Wave 逻辑核心)
+    // --------------------------------------------------------
+
+    let gameInstance;
+
+    class Game {
+        constructor() {
+            this.canvas = document.getElementById('gameCanvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.musicControl = document.getElementById('music-control');
+            this.bgm = document.getElementById('backgroundMusic');
+
+            // 摇杆
+            this.moveJoystick = new VirtualJoystick(
+                document.getElementById('joystick-left-base'),
+                document.getElementById('joystick-left-stick')
+            );
+            this.shootJoystick = new VirtualJoystick(
+                document.getElementById('joystick-right-base'),
+                document.getElementById('joystick-right-stick')
+            );
+
+            // 技能按钮
+            this.skillButtons = {
+                q: document.getElementById('skill-q'),
+                e: document.getElementById('skill-e'),
+                c: document.getElementById('skill-c')
+            };
+
+            this.data = new PlayerData();
+            // 使用动态宽高
+            this.camera = new Camera(CANVAS_WIDTH, CANVAS_HEIGHT);
+            this.world = new InfiniteWorld();
+
+            this.resizeCanvas(); // 立即设置画布大小
+
+            this.state = GameState.MENU;
+            this.running = true;
+
+            this.player = null;
+            this.enemies = [];
+            this.projectiles = [];
+            this.buildings = [];
+
+            this.lastTime = 0;
+            this.currentTime = 0;
+
+            // --- Wave 核心属性 ---
+            this.wave = 1;
+            this.enemiesKilledThisWave = 0;
+            this.enemiesSpawnedThisWave = 0;
+            this.enemiesToKillForNextWave = 100;
+            this.isWaveTransition = false;
+            this.waveTransitionTimer = 0.0;
+            this.baseMaxEnemies = 40;
+            this.enemySpawnTimer = 0;
+
+            // 触摸 UI 矩形 (用于点击检测)
+            this.startButtonRect = null;
+            this.levelUpCardRects = [];
+            this.gameOverButtonRects = [];
+
+            this.setupEventListeners();
+            this.updateMusicControlUI();
+            this.run();
+        }
+
+        resizeCanvas() {
+            CANVAS_WIDTH = window.innerWidth;
+            CANVAS_HEIGHT = window.innerHeight;
+
+            this.canvas.width = CANVAS_WIDTH;
+            this.canvas.height = CANVAS_HEIGHT;
+
+            if (this.camera) {
+                this.camera.width = CANVAS_WIDTH;
+                this.camera.height = CANVAS_HEIGHT;
+            }
+
+            // 更新摇杆位置
+            this.moveJoystick.recalculatePosition();
+            this.shootJoystick.recalculatePosition();
+        }
+
+        setState(newState) {
+            this.state = newState;
+            if (newState === GameState.GAME) {
+                this.lastTime = performance.now();
+                // 尝试播放音乐
+                this.tryPlayMusic();
+            }
+        }
+
+        tryPlayMusic() {
+            if (this.bgm.paused) {
+                this.bgm.play().then(() => {
+                    this.updateMusicControlUI();
+                }).catch(e => {
+                    // 自动播放失败，需要用户交互
+                    console.log("Music autoplay failed, user needs interaction.");
+                    this.updateMusicControlUI(); // 确保UI显示为"关闭"
+                });
+            }
+        }
+
+        toggleMusic() {
+            if (this.bgm.paused) {
+                this.bgm.play().catch(e => console.error("无法播放音乐:", e));
+            } else {
+                this.bgm.pause();
+            }
+            this.updateMusicControlUI();
+        }
+
+        updateMusicControlUI() {
+            if (this.bgm.paused) {
+                this.musicControl.textContent = '🔇';
+                this.musicControl.style.backgroundColor = 'rgba(255, 50, 50, 0.9)';
+            } else {
+                this.musicControl.textContent = '🔊';
+                this.musicControl.style.backgroundColor = 'rgba(255, 215, 0, 0.9)';
+            }
+        }
+
+        setupEventListeners() {
+            // 窗口大小改变
+            window.addEventListener('resize', () => this.resizeCanvas());
+
+            // 音乐控制按钮
+            this.musicControl.addEventListener('click', () => this.toggleMusic()); // 'click' 适用于按钮
+
+            // 技能按钮
+            this.skillButtons.q.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (this.state === GameState.GAME && this.player) this.player.useShield(this.currentTime);
+            });
+            this.skillButtons.c.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (this.state === GameState.GAME && this.player) this.player.useDamageBuff(this.currentTime);
+            });
+            this.skillButtons.e.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (this.state === GameState.GAME && this.player) this.player.useShockwave(this.currentTime);
+            });
+
+            // 画布上的触摸 (用于 UI 按钮)
+            this.canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                // 首次触摸时尝试播放音乐 (绕过浏览器限制)
+                this.tryPlayMusic();
+
+                const rect = this.canvas.getBoundingClientRect();
+                const touch = e.changedTouches[0];
+                const touchX = touch.clientX - rect.left;
+                const touchY = touch.clientY - rect.top;
+
+                this.handleCanvasTouch(touchX, touchY);
+            }, { passive: false });
+        }
+
+        // 处理画布上的 UI 触摸
+        handleCanvasTouch(touchX, touchY) {
+            // 检查是否点击了某个矩形
+            const checkHit = (rect) => {
+                if (!rect) return false;
+                return touchX > rect.x && touchX < rect.x + rect.w &&
+                    touchY > rect.y && touchY < rect.y + rect.h;
+            };
+
+            if (this.state === GameState.MENU) {
+                if (checkHit(this.startButtonRect)) {
+                    this.newGame();
+                }
+            } else if (this.state === GameState.LEVEL_UP) {
+                this.levelUpCardRects.forEach(rect => {
+                    if (checkHit(rect)) {
+                        this.player.applyUpgrade(rect.type);
+                    }
+                });
+            } else if (this.state === GameState.GAME_OVER) {
+                this.gameOverButtonRects.forEach(rect => {
+                    if (checkHit(rect)) {
+                        if (rect.action === 'retry') {
+                            this.newGame();
+                        } else if (rect.action === 'menu') {
+                            this.setState(GameState.MENU);
+                        }
+                    }
+                });
+            }
+        }
+
+
+        newGame() {
+            this.player = new Player(0, 0, this.data);
+            this.enemies = [];
+            this.projectiles = [];
+            this.buildings = [];
+            this.player.score = 0;
+
+            this.wave = 1;
+            this.enemiesKilledThisWave = 0;
+            this.enemiesSpawnedThisWave = 0;
+            this.isWaveTransition = false;
+            this.waveTransitionTimer = 0.0;
+            this.world.chunks.clear();
+
+            this.startNextWave(true);
+            this.setState(GameState.GAME);
+        }
+
+        startNextWave(isInitial = false) {
+            if (!isInitial) {
+                this.wave += 1;
+            }
+
+            this.enemiesToKillForNextWave = 100 + (this.wave - 1) * 50;
+            this.enemiesKilledThisWave = 0;
+            this.enemiesSpawnedThisWave = 0;
+
+            this.isWaveTransition = true;
+            this.waveTransitionTimer = 3.0;
+
+            this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave);
+
+            if (this.wave >= 2) {
+                this.spawnWaveBosses(this.wave);
+            }
+        }
+
+        spawnWaveInitialEnemies(count) {
+            const rng = new SeededRNG(performance.now());
+            const spawnRadiusMin = 300;
+            const spawnRadiusMax = 1500;
+
+            for (let i = 0; i < count; i++) {
+                const angle = rng.randFloat(0, Math.PI * 2);
+                const distance = rng.randFloat(spawnRadiusMin, spawnRadiusMax);
+
+                const spawnX = this.player.x + Math.cos(angle) * distance;
+                const spawnY = this.player.y + Math.sin(angle) * distance;
+
+                let enemy;
+                const choice = rng.randFloat(0, 1);
+
+                if (choice < 0.5) {
+                    enemy = new NormalShooter(spawnX, spawnY);
+                } else {
+                    enemy = new FastMeleeEnemy(spawnX, spawnY);
+                }
+                this.enemies.push(enemy);
+                this.enemiesSpawnedThisWave += 1;
+            }
+        }
+
+        spawnWaveBosses(numBosses) {
+            const rng = new SeededRNG(performance.now() + 1);
+            const spawnDistance = 2000;
+
+            for (let i = 0; i < numBosses; i++) {
+                const angle = rng.randFloat(0, Math.PI * 2);
+
+                const spawnX = this.player.x + Math.cos(angle) * spawnDistance;
+                const spawnY = this.player.y + Math.sin(angle) * spawnDistance;
+
+                const boss = new BossEnemy(spawnX, spawnY);
+                this.enemies.push(boss);
+            }
+        }
+
+        update(dt) {
+            this.currentTime = performance.now() / 1000.0;
+
+            if (this.state !== GameState.GAME) return;
+
+            if (this.isWaveTransition) {
+                this.waveTransitionTimer -= dt;
+                if (this.waveTransitionTimer <= 0) {
+                    this.isWaveTransition = false;
+                }
+                // 转换期间只允许玩家移动和更新冷却
+                this.player.handleInput(this.input, dt); // (this.input 是旧的，但 handleInput 已修改为使用摇杆)
+                this.player.update(dt);
+                this.camera.update(this.player, dt);
+                return;
+            }
+
+            // 2. Wave 推进检查
+            const activeBosses = this.enemies.filter(e => e instanceof BossEnemy).length;
+            if (this.enemiesKilledThisWave >= this.enemiesToKillForNextWave && activeBosses === 0) {
+                this.startNextWave();
+            }
+
+            // 3. 玩家更新
+            this.player.handleInput(this.input, dt); // (this.input 是旧的，但 handleInput 已修改为使用摇杆)
+            this.player.update(dt);
+
+            // 4. 世界和建筑加载
+            const worldContent = this.world.getVisibleContent(this.player);
+            this.buildings = worldContent.buildings;
+
+            // 5. 敌人持续生成 (软上限控制)
+            this.enemySpawnTimer += dt;
+            const maxEnemyScale = 1 + this.wave * 0.15;
+            const currentMaxEnemies = Math.min(250, Math.floor(this.baseMaxEnemies * maxEnemyScale));
+            const continuousSpawnRate = 0.5;
+            const currentNormalEnemies = this.enemies.filter(e => !(e instanceof BossEnemy)).length;
+
+            if (currentNormalEnemies < currentMaxEnemies && this.enemiesSpawnedThisWave < this.enemiesToKillForNextWave && this.enemySpawnTimer > continuousSpawnRate) {
+                this.spawnSingleEnemy(worldContent.chunkKeys);
+                this.enemiesSpawnedThisWave += 1;
+                this.enemySpawnTimer = 0;
+            }
+
+            // 6. 实体和投射物更新
+            this.enemies.forEach(e => e.update(dt, this.currentTime, this.player));
+            this.projectiles.forEach(p => p.update(dt));
+
+            // 7. 战斗和碰撞检测
+            this.handleCollisions(dt);
+
+            // 8. 过滤已死亡/超时的实体
+            this.projectiles = this.projectiles.filter(p => p.isAlive);
+            this.enemies = this.enemies.filter(e => e.isAlive);
+            this.buildings = this.buildings.filter(b => b.isAlive);
+
+            // 9. 玩家攻击 (来自右摇杆)
+            if (this.shootJoystick.isActive) {
+                const shootVec = this.shootJoystick.getVector();
+                // 模拟一个远处的点击目标
+                const targetX = this.player.x + shootVec.x * 1000;
+                const targetY = this.player.y + shootVec.y * 1000;
+
+                const newProjectile = this.player.attack(this.currentTime, targetX, targetY);
+                if (newProjectile) {
+                    this.projectiles.push(newProjectile);
+                }
+            }
+
+            // 10. 摄像机跟随
+            this.camera.update(this.player, dt);
+
+            // 11. 死亡检查
+            if (!this.player.isAlive) {
+                this.data.updateHighScore(Math.floor(this.player.score));
+                const coinsGained = Math.floor(this.player.score / 2000);
+                this.data.addCoins(coinsGained);
+                this.setState(GameState.GAME_OVER);
+            }
+        }
+
+        spawnSingleEnemy(chunkKeys) {
+            if (chunkKeys.length === 0) return;
+
+            const rng = new SeededRNG(performance.now() + 2);
+            const targetChunkCoords = rng.choice(chunkKeys);
+            const bounds = this.world.getChunkWorldBounds(targetChunkCoords.x, targetChunkCoords.y);
+
+            let spawnX = rng.randFloat(bounds.x, bounds.x + bounds.width);
+            let spawnY = rng.randFloat(bounds.y, bounds.y + bounds.height);
+
+            const screenDist = Math.max(CANVAS_WIDTH, CANVAS_HEIGHT) / 2 + 100;
+            const distToPlayer = Math.sqrt((spawnX - this.player.x) ** 2 + (spawnY - this.player.y) ** 2);
+
+            if (distToPlayer < screenDist) {
+                const angle = Math.atan2(spawnY - this.player.y, spawnX - this.player.x);
+                spawnX = this.player.x + Math.cos(angle) * screenDist;
+                spawnY = this.player.y + Math.sin(angle) * screenDist;
+            }
+
+            let enemy;
+            const choice = rng.randFloat(0, 1);
+
+            if (choice < 0.5) {
+                enemy = new NormalShooter(spawnX, spawnY);
+            } else {
+                enemy = new FastMeleeEnemy(spawnX, spawnY);
+            }
+
+            this.enemies.push(enemy);
+        }
+
+        handleCollisions(dt) {
+            // --- E 键冲击波效果 ---
+            if (this.player.isShockwaving && this.player.shockwaveTimer >= this.player.shockwaveDuration - dt) {
+                const shockwaveDamage = this.player.shockwaveDamage * this.player.damageMultiplier;
+                const knockbackForce = 1500;
+
+                this.enemies.forEach(e => {
+                    if (e.isAlive) {
+                        const dx = e.x - this.player.x;
+                        const dy = e.y - this.player.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < this.player.shockwaveRadius) {
+                            e.takeDamage(shockwaveDamage);
+                            const angle = Math.atan2(dy, dx);
+                            e.applyKnockback(angle, knockbackForce);
+                        }
+                    }
+                });
+            }
+
+            // --- 玩家 vs 建筑 ---
+            this.buildings.forEach(b => {
+                CollisionManager.checkAndResolve(this.player, b);
+            });
+
+            // --- 投射物 vs 实体/建筑 ---
+            this.projectiles.forEach(p => {
+                if (!p.isAlive) return;
+
+                if (p.type === 'player') {
+                    this.enemies.forEach(e => {
+                        if (e.isAlive && CollisionManager.checkCircleCollision(p, e)) {
+                            e.takeDamage(p.damage);
+                            p.isAlive = false;
+                        }
+                    });
+
+                    this.buildings.forEach(b => {
+                        if (b.isDestroyable && p.x > b.x && p.x < b.x + b.width && p.y > b.y && p.y < b.y + b.height) {
+                            b.takeDamage(p.damage);
+                            p.isAlive = false;
+                        }
+                    });
+
+                } else if (p.type === 'enemy') {
+                    if (this.player.isAlive && CollisionManager.checkCircleCollision(p, this.player)) {
+                        this.player.takeDamage(p.damage);
+                        p.isAlive = false;
+                    }
+                }
+            });
+
+            // --- 敌人 vs 玩家 (接触伤害) ---
+            this.enemies.forEach(e => {
+                if (e.isAlive && CollisionManager.checkCircleCollision(e, this.player)) {
+                    if (e instanceof FastMeleeEnemy) {
+                        this.player.takeDamage(e.damage * dt * 5);
+                    } else {
+                        this.player.takeDamage(e.damage * dt);
+                    }
+
+                }
+            });
+        }
+
+        // --- 画面渲染 ---
+
+        draw() {
+            this.ctx.fillStyle = BACKGROUND_COLOR;
+            this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            const offset = { x: this.camera.x, y: this.camera.y };
+
+            this.drawGrid();
+
+            if (this.state === GameState.GAME || this.state === GameState.LEVEL_UP || this.state === GameState.GAME_OVER) {
+                if (!this.player) return; // 容错
+
+                const viewport = this.camera.getViewport();
+                const inView = (entity) => entity.x > viewport.left && entity.x < viewport.right && entity.y > viewport.top && entity.y < viewport.bottom;
+
+                this.buildings.filter(inView).forEach(b => b.draw(this.ctx, offset));
+                this.projectiles.filter(inView).forEach(p => p.draw(this.ctx, offset));
+                this.enemies.filter(inView).forEach(e => e.draw(this.ctx, offset));
+
+                this.player.draw(this.ctx, offset);
+
+                this.drawHUD();
+                this.updateSkillButtons(); // 更新 HTML 技能按钮
+
+            }
+
+            if (this.state === GameState.MENU) this.drawMenu();
+            else if (this.state === GameState.LEVEL_UP) this.drawLevelUpScreen();
+            else if (this.state === GameState.GAME_OVER) this.drawGameOverScreen();
+
+            if (this.isWaveTransition) this.drawWaveTransition();
+        }
+
+        // 更新 HTML 技能按钮的 UI
+        updateSkillButtons() {
+            if (!this.player) return;
+            const p = this.player;
+
+            const skills = [
+                { btn: this.skillButtons.q, cd: p.shieldCooldown, max: p.shieldMaxCooldown, key: 'Q' },
+                { btn: this.skillButtons.c, cd: p.buffCooldown, max: p.buffMaxCooldown, key: 'C' },
+                { btn: this.skillButtons.e, cd: p.shockwaveCooldown, max: p.shockwaveMaxCooldown, key: 'E' }
+            ];
+
+            skills.forEach(skill => {
+                if (skill.cd > 0) {
+                    skill.btn.textContent = Math.ceil(skill.cd).toString();
+                    skill.btn.classList.add('on-cooldown');
+                } else {
+                    skill.btn.textContent = skill.key;
+                    skill.btn.classList.remove('on-cooldown');
+                }
+            });
+        }
+
+        drawGrid() {
+            this.ctx.strokeStyle = GRID_COLOR;
+            this.ctx.lineWidth = 1;
+            const step = 50;
+
+            const startX = -this.camera.x % step;
+            const startY = -this.camera.y % step;
+
+            for (let x = startX; x < CANVAS_WIDTH; x += step) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(x, 0);
+                this.ctx.lineTo(x, CANVAS_HEIGHT);
+                this.ctx.stroke();
+            }
+
+            for (let y = startY; y < CANVAS_HEIGHT; y += step) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, y);
+                this.ctx.lineTo(CANVAS_WIDTH, y);
+                this.ctx.stroke();
+            }
+        }
+
+        drawText(text, x, y, size, color = 'white', font = 'Arial', align = 'left') {
+            this.ctx.font = `${size}px ${font}`;
+            this.ctx.fillStyle = color;
+            this.ctx.textAlign = align;
+            this.ctx.fillText(text, x, y);
+        }
+
+        drawWaveTransition() {
+            const centerX = CANVAS_WIDTH / 2;
+            const centerY = CANVAS_HEIGHT / 2;
+            const alpha = Math.min(0.8, Math.abs(this.waveTransitionTimer - 1.5) / 1.5);
+
+            this.ctx.fillStyle = `rgba(10, 10, 30, ${alpha})`;
+            this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            const flash = Math.abs(Math.sin(this.currentTime * 5));
+            const baseSize = Math.min(CANVAS_WIDTH * 0.1, 120); // 响应式字体
+
+            this.drawText(`WAVE ${this.wave}`, centerX, centerY - 30, baseSize, '#FFD700', 'Impact', 'center');
+
+            if (this.wave >= 2) {
+                this.drawText(`生成 ${this.wave} 个 Boss!`, centerX, centerY + 30, baseSize * 0.4, `rgba(255, 50, 50, ${flash})`, 'Arial', 'center');
+            } else {
+                this.drawText(`敌人正在靠近!`, centerX, centerY + 30, baseSize * 0.4, `rgba(0, 255, 0, ${flash})`, 'Arial', 'center');
+            }
+        }
+
+        drawMenu() {
+            const centerX = CANVAS_WIDTH / 2;
+            const baseSize = Math.min(CANVAS_WIDTH * 0.1, 90); // 响应式字体
+
+            this.drawText("DANTAO", centerX, CANVAS_HEIGHT * 0.2, baseSize, '#FFD700', 'Impact', 'center');
+            this.drawText("无尽 Wave 生存", centerX, CANVAS_HEIGHT * 0.2 + baseSize * 0.6, baseSize * 0.4, 'white', 'Arial', 'center');
+
+            // 绘制开始按钮 (并存储其矩形)
+            const btnW = Math.min(CANVAS_WIDTH * 0.7, 300);
+            const btnH = Math.min(CANVAS_HEIGHT * 0.1, 60);
+            const btnX = centerX - btnW / 2;
+            const btnY = CANVAS_HEIGHT * 0.45;
+
+            this.ctx.fillStyle = '#4650a3';
+            this.ctx.fillRect(btnX, btnY, btnW, btnH);
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(btnX, btnY, btnW, btnH);
+            this.drawText("开始游戏", centerX, btnY + btnH * 0.7, btnH * 0.5, 'white', 'Arial', 'center');
+
+            // 存储矩形用于触摸检测
+            this.startButtonRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+            // 底部信息
+            const bottomY = CANVAS_HEIGHT - 30;
+            const smallFontSize = Math.min(CANVAS_WIDTH * 0.04, 24);
+            this.drawText(`最高分: ${this.data.highScore}`, 30, bottomY, smallFontSize, 'white', 'Arial', 'left');
+            this.drawText(`金币: ${this.data.coins}`, centerX, bottomY, smallFontSize, '#FFD700', 'Arial', 'center');
+            this.drawText(`${this.data.currentSkin.toUpperCase()}`, CANVAS_WIDTH - 30, bottomY, smallFontSize, 'white', 'Arial', 'right');
+        }
+
+        drawHUD() {
+            const p = this.player;
+            const hudX = 20;
+            const hudY = 20;
+            const smallTextSize = Math.max(16, CANVAS_HEIGHT * 0.02);
+            const mediumTextSize = Math.max(20, CANVAS_HEIGHT * 0.03);
+            const largeTextSize = Math.max(32, CANVAS_HEIGHT * 0.05);
+
+            // --- HP Bar ---
+            const hpBarW = Math.min(350, CANVAS_WIDTH * 0.4);
+            const hpBarH = Math.max(25, CANVAS_HEIGHT * 0.03);
+            const hpRatio = p.health / p.maxHealth;
+            let hpColor = hpRatio > 0.6 ? 'rgb(50, 255, 50)' : (hpRatio > 0.3 ? 'rgb(255, 200, 50)' : 'rgb(255, 50, 50)');
+
+            this.ctx.fillStyle = 'rgb(100, 30, 30)';
+            this.ctx.fillRect(hudX, hudY, hpBarW, hpBarH);
+            this.ctx.fillStyle = hpColor;
+            this.ctx.fillRect(hudX, hudY, hpBarW * hpRatio, hpBarH);
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(hudX, hudY, hpBarW, hpBarH);
+            this.drawText(`HP: ${Math.floor(p.health)}/${p.maxHealth}`, hudX + 10, hudY + hpBarH * 0.7, smallTextSize, 'white');
+
+            // --- EXP Bar ---
+            const expBarW = hpBarW;
+            const expBarH = Math.max(20, CANVAS_HEIGHT * 0.02);
+            const expRatio = p.exp / p.expToNextLevel;
+
+            this.ctx.fillStyle = 'rgb(30, 60, 100)';
+            this.ctx.fillRect(hudX, hudY + hpBarH + 5, expBarW, expBarH);
+            this.ctx.fillStyle = 'rgb(100, 200, 255)';
+            this.ctx.fillRect(hudX, hudY + hpBarH + 5, expBarW * expRatio, expBarH);
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(hudX, hudY + hpBarH + 5, expBarW, expBarH);
+            this.drawText(`Lv.${p.level}`, hudX + 10, hudY + hpBarH + 5 + expBarH * 0.7, smallTextSize, 'white');
+
+            // --- Wave & Kill Progress ---
+            const waveInfoX = CANVAS_WIDTH / 2;
+            const activeBosses = this.enemies.filter(e => e instanceof BossEnemy).length;
+
+            this.drawText(`WAVE ${this.wave}`, waveInfoX, hudY + largeTextSize * 0.8, largeTextSize, '#FFD700', 'Impact', 'center');
+
+            const killText = `${this.enemiesKilledThisWave}/${this.enemiesToKillForNextWave}`;
+            const bossText = `Boss: ${activeBosses}`;
+
+            this.drawText(killText, waveInfoX, hudY + largeTextSize + mediumTextSize * 0.8, mediumTextSize, 'white', 'Arial', 'center');
+            this.drawText(bossText, waveInfoX, hudY + largeTextSize + mediumTextSize * 1.8, mediumTextSize, activeBosses > 0 ? 'rgb(255, 50, 50)' : 'rgb(50, 255, 50)', 'Arial', 'center');
+
+            // --- Score ---
+            const scoreX = CANVAS_WIDTH - 20;
+            this.drawText(`Score: ${Math.floor(p.score)}`, scoreX, hudY + mediumTextSize, mediumTextSize, 'white', 'Arial', 'right');
+
+            // 移除了旧的技能指示器绘制，因为它们现在是 HTML 按钮
+        }
+
+        drawLevelUpScreen() {
+            const centerX = CANVAS_WIDTH / 2;
+            const centerY = CANVAS_HEIGHT / 2;
+            const baseTitleSize = Math.min(CANVAS_WIDTH * 0.15, 90);
+            const baseTextSize = Math.min(CANVAS_WIDTH * 0.06, 36);
+
+            this.ctx.fillStyle = 'rgba(10, 10, 30, 0.95)';
+            this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            this.drawText("★ 升 级! ★", centerX, centerY - CANVAS_HEIGHT * 0.3, baseTitleSize, '#FFD700', 'Impact', 'center');
+            this.drawText(`等级 ${this.player.level}!`, centerX, centerY - CANVAS_HEIGHT * 0.3 + baseTitleSize * 0.7, baseTitleSize * 0.5, 'white', 'Arial', 'center');
+            this.drawText("选择一个升级:", centerX, centerY - CANVAS_HEIGHT * 0.2, baseTextSize, 'white', 'Arial', 'center');
+
+            const options = [
+                { key: '1', icon: '⚔', name: "伤害", effect: "+25%", color: 'rgb(255, 100, 100)', type: 'damage' },
+                { key: '2', icon: '❤', name: "生命", effect: "+30", color: 'rgb(255, 50, 150)', type: 'health' },
+                { key: '3', icon: '➤', name: "速度", effect: "+15%", color: 'rgb(100, 200, 255)', type: 'speed' }
+            ];
+
+            let startY = centerY - CANVAS_HEIGHT * 0.1;
+            const cardW = Math.min(CANVAS_WIDTH * 0.8, 400);
+            const cardH = Math.min(CANVAS_HEIGHT * 0.15, 100);
+            const cardGap = Math.max(10, CANVAS_HEIGHT * 0.02);
+
+            // 清空上一帧的矩形
+            this.levelUpCardRects = [];
+
+            options.forEach((opt, index) => {
+                const y = startY + index * (cardH + cardGap);
+                const x = centerX - cardW / 2;
+
+                this.ctx.fillStyle = opt.color;
+                this.ctx.globalAlpha = 0.4;
+                this.ctx.fillRect(x, y, cardW, cardH);
+                this.ctx.globalAlpha = 1.0;
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 4;
+                this.ctx.strokeRect(x, y, cardW, cardH);
+
+                const iconSize = cardH * 0.4;
+                const titleSize = cardH * 0.3;
+                const effectSize = cardH * 0.25;
+
+                this.drawText(opt.icon, x + cardW * 0.15, y + cardH / 2 + iconSize/3, iconSize, 'white', 'Arial', 'center');
+                this.drawText(opt.name, x + cardW * 0.45, y + cardH * 0.4, titleSize, 'white', 'Arial', 'left');
+                this.drawText(opt.effect, x + cardW * 0.45, y + cardH * 0.75, effectSize, 'lightgray', 'Arial', 'left');
+
+                // 存储矩形用于触摸检测
+                this.levelUpCardRects.push({ x: x, y: y, w: cardW, h: cardH, type: opt.type });
+            });
+
+            this.drawText("触摸选项进行选择", centerX, CANVAS_HEIGHT - 50, baseTextSize * 0.7, 'white', 'Arial', 'center');
+        }
+
+        drawGameOverScreen() {
+            const centerX = CANVAS_WIDTH / 2;
+            const centerY = CANVAS_HEIGHT / 2;
+            const titleSize = Math.min(CANVAS_WIDTH * 0.18, 100);
+            const largeText = Math.min(CANVAS_WIDTH * 0.08, 48);
+            const mediumText = Math.min(CANVAS_WIDTH * 0.07, 36);
+            const smallText = Math.min(CANVAS_WIDTH * 0.06, 30);
+
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            this.drawText("游戏结束", centerX, centerY - CANVAS_HEIGHT * 0.2, titleSize, 'rgb(255, 50, 50)', 'Impact', 'center');
+
+            this.drawText(`得分: ${Math.floor(this.player.score)}`, centerX, centerY - 20, largeText, 'white', 'Arial', 'center');
+            this.drawText(`最高分: ${this.data.highScore}`, centerX, centerY + 40, mediumText, '#FFD700', 'Arial', 'center');
+
+            const coinsGained = Math.floor(this.player.score / 2000);
+            this.drawText(`达到 Wave ${this.wave}`, centerX, centerY + 100, smallText, 'rgb(255, 255, 0)', 'Arial', 'center');
+            this.drawText(`获得金币: +${coinsGained}`, centerX, centerY + 140, smallText, 'rgb(0, 200, 0)', 'Arial', 'center');
+
+            // --- 绘制触摸按钮 ---
+            this.gameOverButtonRects = [];
+            const btnW = Math.min(CANVAS_WIDTH * 0.6, 250);
+            const btnH = Math.min(CANVAS_HEIGHT * 0.08, 60);
+            const btnYRetry = CANVAS_HEIGHT - 180;
+            const btnYMenu = CANVAS_HEIGHT - 100;
+
+            // 重试按钮
+            const retryX = centerX - btnW / 2;
+            this.ctx.fillStyle = '#46a346';
+            this.ctx.fillRect(retryX, btnYRetry, btnW, btnH);
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(retryX, btnYRetry, btnW, btnH);
+            this.drawText("重新开始", centerX, btnYRetry + btnH * 0.7, btnH * 0.5, 'white', 'Arial', 'center');
+            this.gameOverButtonRects.push({ x: retryX, y: btnYRetry, w: btnW, h: btnH, action: 'retry' });
+
+            // 菜单按钮
+            const menuX = centerX - btnW / 2;
+            this.ctx.fillStyle = '#a34646';
+            this.ctx.fillRect(menuX, btnYMenu, btnW, btnH);
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(menuX, btnYMenu, btnW, btnH);
+            this.drawText("返回菜单", centerX, btnYMenu + btnH * 0.7, btnH * 0.5, 'white', 'Arial', 'center');
+            this.gameOverButtonRects.push({ x: menuX, y: btnYMenu, w: btnW, h: btnH, action: 'menu' });
+        }
+
+        run() {
+            const loop = (currentTime) => {
+                if (!this.running) return;
+
+                // requestAnimationFrame 会在后台标签页暂停，dt 会变得巨大
+                // 我们限制 dt 的最大值来防止"传送"
+                const now = performance.now();
+                let dt = (now - this.lastTime) / 1000.0;
+                if (dt > 0.1) {
+                    dt = 0.1; // 限制最大 dt 为 0.1s
+                }
+                this.lastTime = now;
+
+                // 仅在 dt 为正时更新
+                if (dt > 0) {
+                    this.update(dt);
+                }
+
+                this.draw();
+
+                requestAnimationFrame(loop);
+            };
+            // 初始化 lastTime
+            this.lastTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+    }
+
+    window.onload = () => {
+        // 确保在加载时隐藏地址栏等
+        window.scrollTo(0, 1);
+        gameInstance = new Game();
+    };
+
+</script>
+</body>
+</html>
