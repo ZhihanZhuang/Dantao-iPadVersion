@@ -326,7 +326,7 @@
   class PlayerData {
     constructor() {
       this.coins = 0;
-      this.ownedSkins = ['default'];
+      this.ownedSkins = ['default', 'blue', 'red', 'gold']; // 默认解锁所有皮肤
       this.currentSkin = 'default';
       this.highScore = 0;
       this.loadData();
@@ -339,7 +339,7 @@
         if (dataString) {
           const data = JSON.parse(dataString);
           this.coins = data.coins || 0;
-          this.ownedSkins = data.owned_skins || ['default'];
+          this.ownedSkins = data.owned_skins || ['default', 'blue', 'red', 'gold']; // 确保加载时也有所有皮肤
           this.currentSkin = data.current_skin || 'default';
           this.highScore = data.highScore || 0;
         }
@@ -1501,6 +1501,8 @@
       this.startButtonRect = null;
       this.levelUpCardRects = [];
       this.gameOverButtonRects = [];
+      this.skinChangeLeftRect = null;
+      this.skinChangeRightRect = null;
 
       this.setupEventListeners();
       this.updateMusicControlUI();
@@ -1612,6 +1614,10 @@
         if (this.state === GameState.MENU) {
             if (checkHit(this.startButtonRect)) {
                 this.newGame();
+            } else if (checkHit(this.skinChangeLeftRect)) {
+                this.changeSkin(-1);
+            } else if (checkHit(this.skinChangeRightRect)) {
+                this.changeSkin(1);
             }
         } else if (this.state === GameState.LEVEL_UP) {
             this.levelUpCardRects.forEach(rect => {
@@ -1630,6 +1636,23 @@
                 }
             });
         }
+    }
+
+    // 新增：更换皮肤的方法
+    changeSkin(direction) {
+        const skins = this.data.ownedSkins;
+        let currentIndex = skins.indexOf(this.data.currentSkin);
+        
+        currentIndex += direction;
+        
+        if (currentIndex < 0) {
+            currentIndex = skins.length - 1;
+        } else if (currentIndex >= skins.length) {
+            currentIndex = 0;
+        }
+        
+        this.data.currentSkin = skins[currentIndex];
+        this.data.saveData();
     }
 
 
@@ -2026,12 +2049,43 @@
       // 存储矩形用于触摸检测
       this.startButtonRect = { x: btnX, y: btnY, w: btnW, h: btnH };
 
+      // --- 皮肤选择 UI ---
+      const smallFontSize = Math.min(CANVAS_WIDTH * 0.04, 24);
+      const skinText = `皮肤: ${this.data.currentSkin.toUpperCase()}`;
+      const skinY = CANVAS_HEIGHT * 0.65;
+      const arrowSize = smallFontSize * 1.5;
+      
+      // 测量文本宽度以便放置箭头
+      this.ctx.font = `${smallFontSize}px Arial`; // Set font to measure
+      const skinTextWidth = this.ctx.measureText(skinText).width;
+      
+      this.drawText(skinText, centerX, skinY, smallFontSize, 'white', 'Arial', 'center');
+
+      // 左箭头
+      const leftArrowX = centerX - skinTextWidth / 2 - arrowSize;
+      this.drawText("<", leftArrowX, skinY + arrowSize * 0.1, arrowSize, '#FFD700', 'Impact', 'center'); // Adjusted Y for alignment
+      this.skinChangeLeftRect = { 
+          x: leftArrowX - arrowSize / 2, // Tighter hit box
+          y: skinY - arrowSize / 2, 
+          w: arrowSize, 
+          h: arrowSize
+      };
+
+      // 右箭头
+      const rightArrowX = centerX + skinTextWidth / 2 + arrowSize;
+      this.drawText(">", rightArrowX, skinY + arrowSize * 0.1, arrowSize, '#FFD700', 'Impact', 'center'); // Adjusted Y for alignment
+      this.skinChangeRightRect = { 
+          x: rightArrowX - arrowSize / 2, // Tighter hit box
+          y: skinY - arrowSize / 2, 
+          w: arrowSize, 
+          h: arrowSize
+      };
+
       // 底部信息
       const bottomY = CANVAS_HEIGHT - 30;
-      const smallFontSize = Math.min(CANVAS_WIDTH * 0.04, 24);
       this.drawText(`最高分: ${this.data.highScore}`, 30, bottomY, smallFontSize, 'white', 'Arial', 'left');
       this.drawText(`金币: ${this.data.coins}`, centerX, bottomY, smallFontSize, '#FFD700', 'Arial', 'center');
-      this.drawText(`${this.data.currentSkin.toUpperCase()}`, CANVAS_WIDTH - 30, bottomY, smallFontSize, 'white', 'Arial', 'right');
+      // this.drawText(`${this.data.currentSkin.toUpperCase()}`, CANVAS_WIDTH - 30, bottomY, smallFontSize, 'white', 'Arial', 'right'); // 已被皮肤UI替代
     }
 
     drawHUD() {
