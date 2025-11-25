@@ -1337,12 +1337,12 @@
       this.x = x;
       this.y = y;
       this.radius = 28;
-      this.maxHealth = 50;
-      this.health = 50;
+      this.maxHealth = 150;
+      this.health = 150;
       this.baseSpeed = 150;
       this.revealedSpeed = 300;
       this.speed = this.baseSpeed;
-      this.damage = 10;
+      this.damage = 15;
       this.expValue = 25;
       
       this.isVisible = false;
@@ -1682,14 +1682,14 @@
       // --- Wave 核心属性 ---
       // Wave 1: 100, Wave 2: 150, Wave 3: 200, ...
       // 玩家要求: 每波增加 20 个敌人
-      this.enemiesToKillForNextWave = 120 + (this.wave - 1) * 50; // 原本是 100
+      this.enemiesToKillForNextWave = 100 + (this.wave - 1) * 50; // 原本是 100
       this.enemiesKilledThisWave = 0;
       this.enemiesSpawnedThisWave = 0;
 
       this.isWaveTransition = true;
       this.waveTransitionTimer = 3.0; 
 
-      this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave);
+      this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave + 20);
 
       if (this.wave >= 2) {
         this.spawnWaveBosses(this.wave); 
@@ -2283,3 +2283,4 @@
 </script>
 </body>
 </html>
+
