@@ -712,6 +712,10 @@
       this.expGrowthRate = 1.4;
 
       this.aimAngle = 0;
+
+      // 隐形敌人的冲击波
+      this.knockbackVelX = 0;
+      this.knockbackVelY = 0;
     }
 
     // --- Q 技能 (护盾) ---
@@ -745,6 +749,14 @@
         return true;
       }
       return false;
+    }
+
+    // 由敌人调用的击退
+    applyKnockback(angle, force) {
+      // 护盾可以抵挡击退
+      if (this.isShielded) return; 
+      this.knockbackVelX = Math.cos(angle) * force;
+      this.knockbackVelY = Math.sin(angle) * force;
     }
 
     gainExp(amount) {
@@ -845,6 +857,15 @@
           this.aimAngle = Math.atan2(velY, velX);
       }
       // (如果都不动，保持上一次的 aimAngle)
+      
+      // 3. 应用击退 (来自隐形敌人)
+      this.x += this.knockbackVelX * dt;
+      this.y += this.knockbackVelY * dt;
+      const decayRate = 0.9;
+      this.knockbackVelX *= decayRate;
+      this.knockbackVelY *= decayRate;
+      if (Math.abs(this.knockbackVelX) < 10) this.knockbackVelX = 0;
+      if (Math.abs(this.knockbackVelY) < 10) this.knockbackVelY = 0;
     }
 
     update(dt) {
@@ -1309,6 +1330,114 @@
     }
   }
 
+  /** 新增: 隐形追踪敌人 */
+  class InvisibleEnemy extends EnemyBase {
+    constructor(x, y) {
+      super();
+      this.x = x;
+      this.y = y;
+      this.radius = 28;
+      this.maxHealth = 50;
+      this.health = 50;
+      this.baseSpeed = 150;
+      this.revealedSpeed = 300;
+      this.speed = this.baseSpeed;
+      this.damage = 10;
+      this.expValue = 25;
+      
+      this.isVisible = false;
+      this.hasUsedShockwave = false;
+      this.color = 'rgb(150, 0, 255)'; // 紫色
+
+      this.attackCooldown = 2.5; // 攻击稍慢
+      this.lastAttackTime = 0;
+      this.attackRange = 400;
+    }
+
+    takeDamage(damage) {
+      this.health -= damage;
+      
+      if (!this.isVisible) {
+        this.isVisible = true;
+        this.speed = this.revealedSpeed; // 显形后加速
+      }
+
+      if (this.health <= 0) {
+        this.isAlive = false;
+        gameInstance.player.gainExp(this.expValue);
+        gameInstance.player.score += this.expValue;
+        gameInstance.enemiesKilledThisWave += 1; 
+        return true;
+      }
+      return false;
+    }
+
+    update(dt, currentTime, target) {
+      if (!this.isAlive) return;
+
+      this.updateMovement(dt, this.speed);
+      if (this.knockbackVelX !== 0 || this.knockbackVelY !== 0) return;
+
+      const dx = target.x - this.x;
+      const dy = target.y - this.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
+
+      // 始终追踪玩家
+      this.x += Math.cos(angle) * this.speed * dt;
+      this.y += Math.sin(angle) * this.speed * dt;
+
+      // 只有在显形后才能攻击
+      if (this.isVisible && distance < this.attackRange && currentTime >= this.lastAttackTime + this.attackCooldown) {
+        this.lastAttackTime = currentTime;
+        
+        if (!this.hasUsedShockwave) {
+          this.shootShockwave(target);
+          this.hasUsedShockwave = true;
+        } else {
+          this.shoot(angle);
+        }
+      }
+    }
+
+    // 第一次攻击：冲击波 (击退玩家)
+    shootShockwave(target) {
+      const dx = target.x - this.x;
+      const dy = target.y - this.y;
+      const angle = Math.atan2(dy, dx);
+      const knockbackForce = 1200; // 强力击退
+      gameInstance.player.applyKnockback(angle, knockbackForce);
+      // 可以在这里加一个视觉/声音提示
+    }
+
+    // 后续攻击：普通射击
+    shoot(angle) {
+      const speed = 400;
+      const damage = this.damage;
+      const projectile = new Projectile(this.x, this.y, angle, speed, damage, this, 'enemy');
+      gameInstance.projectiles.push(projectile);
+    }
+
+    draw(ctx, offset) {
+      // 不可见时完全不绘制
+      if (!this.isVisible) return; 
+
+      const screenPos = gameInstance.camera.worldToScreen(this.x, this.y);
+
+      ctx.beginPath();
+      ctx.arc(screenPos.x, screenPos.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color; // 显形后为紫色
+      ctx.globalAlpha = 0.8; // 可以带点半透明
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      this.drawHealthBar(ctx, screenPos);
+    }
+  }
+
 
   // --------------------------------------------------------
   // 8. Game - 游戏主控制层 (Wave 逻辑核心)
@@ -1530,14 +1659,14 @@
       // --- Wave 核心属性 ---
       // Wave 1: 100, Wave 2: 150, Wave 3: 200, ...
       // 玩家要求: 每波增加 20 个敌人
-      this.enemiesToKillForNextWave = 100 + (this.wave - 1) * 50; // 原本是 100
+      this.enemiesToKillForNextWave = 120 + (this.wave - 1) * 50; // 原本是 100
       this.enemiesKilledThisWave = 0;
       this.enemiesSpawnedThisWave = 0;
 
       this.isWaveTransition = true;
       this.waveTransitionTimer = 3.0; 
 
-      this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave + 20);
+      this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave);
 
       if (this.wave >= 2) {
         this.spawnWaveBosses(this.wave); 
@@ -1557,11 +1686,14 @@
         const spawnY = this.player.y + Math.sin(angle) * distance;
 
         let enemy;
-        const choice = rng.randFloat(0, 1);
+        // 敌人类刷新权重: 10% 隐形, 75% 射手, 25% 近战 (总和 110)
+        const choice = rng.randFloat(0, 110);
 
-        if (choice < 0.5) {
+        if (choice < 10) { // 10% 隐形
+          enemy = new InvisibleEnemy(spawnX, spawnY);
+        } else if (choice < 85) { // 75% 射手 (10 + 75)
           enemy = new NormalShooter(spawnX, spawnY);
-        } else {
+        } else { // 25% 近战
           enemy = new FastMeleeEnemy(spawnX, spawnY);
         }
         this.enemies.push(enemy);
@@ -1685,11 +1817,14 @@
       }
 
       let enemy;
-      const choice = rng.randFloat(0, 1);
+      // 敌人类刷新权重: 10% 隐形, 75% 射手, 25% 近战 (总和 110)
+      const choice = rng.randFloat(0, 110);
 
-      if (choice < 0.5) {
+      if (choice < 10) { // 10% 隐形
+        enemy = new InvisibleEnemy(spawnX, spawnY);
+      } else if (choice < 85) { // 75% 射手 (10 + 75)
         enemy = new NormalShooter(spawnX, spawnY);
-      } else {
+      } else { // 25% 近战
         enemy = new FastMeleeEnemy(spawnX, spawnY);
       }
 
@@ -2094,4 +2229,3 @@
 </script>
 </body>
 </html>
-
