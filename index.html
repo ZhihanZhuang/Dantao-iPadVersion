@@ -1537,7 +1537,7 @@
       this.isWaveTransition = true;
       this.waveTransitionTimer = 3.0; 
 
-      this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave);
+      this.spawnWaveInitialEnemies(this.enemiesToKillForNextWave + 20);
 
       if (this.wave >= 2) {
         this.spawnWaveBosses(this.wave); 
@@ -2094,3 +2094,4 @@
 </script>
 </body>
 </html>
+
